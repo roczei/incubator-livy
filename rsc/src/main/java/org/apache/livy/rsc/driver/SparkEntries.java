@@ -24,7 +24,6 @@ import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.SparkSession$;
 import org.apache.spark.sql.hive.HiveContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,7 +67,7 @@ public class SparkEntries {
             SparkConf conf = sc().getConf();
             String catalog = conf.get("spark.sql.catalogImplementation", "in-memory").toLowerCase();
 
-            if (catalog.equals("hive") && SparkSession$.MODULE$.hiveClassesArePresent()) {
+            if (catalog.equals("hive") && hiveClassesArePresent()) {
               ClassLoader loader = Thread.currentThread().getContextClassLoader() != null ?
                 Thread.currentThread().getContextClassLoader() : getClass().getClassLoader();
               if (loader.getResource("hive-site.xml") == null) {
@@ -128,6 +127,21 @@ public class SparkEntries {
       }
     }
     return hivectx;
+  }
+
+  /**
+   * Checks whether Hive integration classes are present on the classpath.
+   * Replicates the check that Spark's SparkSession companion object performed
+   * until Spark 3.x (removed / made private in Spark 4).
+   */
+  private static boolean hiveClassesArePresent() {
+    try {
+      Class.forName("org.apache.spark.sql.hive.HiveSessionStateBuilder");
+      Class.forName("org.apache.hadoop.hive.conf.HiveConf");
+      return true;
+    } catch (ClassNotFoundException e) {
+      return false;
+    }
   }
 
   public synchronized void stop() {

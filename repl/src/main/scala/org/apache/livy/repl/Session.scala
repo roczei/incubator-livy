@@ -19,7 +19,7 @@ package org.apache.livy.repl
 
 import java.util.{LinkedHashMap => JLinkedHashMap}
 import java.util.Map.Entry
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.JavaConverters._
@@ -137,7 +137,7 @@ class Session(
       entries
     }(interpreterExecutor)
 
-    future.onFailure { case _ => changeState(SessionState.Error()) }(interpreterExecutor)
+    future.failed.foreach { _ => changeState(SessionState.Error()) }(interpreterExecutor)
     future
   }
 
@@ -229,6 +229,12 @@ class Session(
   def close(): Unit = {
     interpreterExecutor.shutdown()
     cancelExecutor.shutdown()
+    // Wait for any in-flight start() task to finish before closing the interpreter.
+    // Without this, interpGroup may still be empty when foreach(_.close()) runs,
+    // leaving an orphaned SparkContext in a daemon thread. That context's JVM shutdown
+    // hook would later set SparkShutdownHookManager.shuttingDown = true, causing the
+    // next SparkContext creation to fail with IllegalStateException.
+    interpreterExecutor.awaitTermination(30, TimeUnit.SECONDS)
     interpGroup.values.foreach(_.close())
   }
 

@@ -83,6 +83,7 @@
     <slf4j.version>1.7.36</slf4j.version>
     <reload4j.version>1.2.26</reload4j.version>
     <spark.scala-2.12.version>3.3.4</spark.scala-2.12.version>
+    <spark.scala-2.13.version>4.1.1</spark.scala-2.13.version>
     <spark.version>${spark.scala-2.12.version}</spark.version>
     <kubernetes.client.version>5.6.0</kubernetes.client.version>
     <hive.version>3.0.0</hive.version>
@@ -102,7 +103,8 @@
     <mockito.version>1.10.19</mockito.version>
     <netty.version>4.1.86.Final</netty.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <scalatest.version>3.0.8</scalatest.version>
+    <scalatest.version>3.2.19</scalatest.version>
+    <scalatestplus.mockito.version>3.1.0.0</scalatestplus.mockito.version>
     <scalatra.version>2.6.5</scalatra.version>
     <java.version>1.8</java.version>
     <owasp.version>12.1.9</owasp.version>
@@ -253,6 +255,13 @@
       <groupId>org.mockito</groupId>
       <artifactId>mockito-all</artifactId>
       <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.scalatestplus</groupId>
+      <artifactId>mockito-1-10_${scala.binary.version}</artifactId>
+      <version>${scalatestplus.mockito.version}</version>
       <scope>test</scope>
     </dependency>
 
@@ -957,7 +966,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-shade-plugin</artifactId>
-          <version>3.5.0</version>
+          <version>3.6.2</version>
         </plugin>
 
         <plugin>
@@ -1339,6 +1348,15 @@
     </profile>
 
     <profile>
+      <id>scala-2.13</id>
+      <properties>
+        <scala.binary.version>2.13</scala.binary.version>
+        <scala.version>2.13.16</scala.version>
+        <scalatra.version>2.8.4</scalatra.version>
+      </properties>
+    </profile>
+
+    <profile>
       <id>thriftserver</id>
       <modules>
         <module>thriftserver/server</module>
@@ -1364,6 +1382,46 @@
           https://archive.apache.org/dist/spark/spark-${spark.version}/${spark.bin.name}.tgz
         </spark.bin.download.url>
       </properties>
+    </profile>
+
+    <profile>
+      <!--
+        Spark 4.x profile. Spark 4 requires Scala 2.13 and Java 17+.
+        Usage: mvn package -Pspark4,scala-2.13
+        Note: full Jakarta EE (javax -> jakarta) namespace migration in Livy's
+        servlet/Jetty layer is a separate follow-up and not in scope here.
+      -->
+      <id>spark4</id>
+      <properties>
+        <spark.version>${spark.scala-2.13.version}</spark.version>
+        <hadoop.major-minor.version>3</hadoop.major-minor.version>
+        <hadoop.version>3.4.2</hadoop.version>
+        <java.version>17</java.version>
+        <py4j.version>0.10.9.9</py4j.version>
+        <json4s.version>4.0.7</json4s.version>
+        <netty.version>4.2.7.Final</netty.version>
+        <jackson.version>2.18.2</jackson.version>
+        <jackson-databind.version>2.18.2</jackson-databind.version>
+        <scala.binary.version>2.13</scala.binary.version>
+        <scala.version>2.13.17</scala.version>
+        <scalatra.version>2.8.4</scalatra.version>
+        <spark.bin.name>spark-${spark.version}-bin-hadoop${hadoop.major-minor.version}</spark.bin.name>
+        <spark.bin.download.url>
+          https://archive.apache.org/dist/spark/spark-${spark.version}/${spark.bin.name}.tgz
+        </spark.bin.download.url>
+        <!-- Spark 4 requires SLF4J 2.x (org.slf4j.event.Level was added in 2.0).
+             This version overrides the 1.7.x that slf4j-reload4j would otherwise pull in. -->
+        <slf4j2.version>2.0.16</slf4j2.version>
+      </properties>
+      <dependencyManagement>
+        <dependencies>
+          <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j2.version}</version>
+          </dependency>
+        </dependencies>
+      </dependencyManagement>
     </profile>
 
     <profile>

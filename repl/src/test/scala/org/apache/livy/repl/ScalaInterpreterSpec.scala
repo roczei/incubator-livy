@@ -64,7 +64,7 @@ class ScalaInterpreterSpec extends BaseInterpreterSpec {
         |x + y
       """.stripMargin)
     response should equal(Interpreter.ExecuteSuccess(
-      TEXT_PLAIN -> "x: Int = 1\ny: Int = 2\nres2: Int = 3\n"
+      TEXT_PLAIN -> "x: Int = 1\ny: Int = 2\nres0: Int = 3\n"
     ))
   }
 
@@ -130,7 +130,7 @@ class ScalaInterpreterSpec extends BaseInterpreterSpec {
 
   it should "execute spark commands" in withInterpreter { interpreter =>
     val response = interpreter.execute(
-      """sc.parallelize(0 to 1).map { i => i+1 }.collect""".stripMargin)
+      """sc.parallelize(0 to 1).map { i => i+1 }.collect()""".stripMargin)
 
     response should equal(Interpreter.ExecuteSuccess(
       TEXT_PLAIN -> "res0: Array[Int] = Array(1, 2)\n"

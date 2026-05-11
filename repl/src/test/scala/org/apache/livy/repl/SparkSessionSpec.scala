@@ -160,7 +160,7 @@ class SparkSessionSpec extends BaseSessionSpec(Spark) {
 
   it should "execute spark commands" in withSession { session =>
     val statement = execute(session)(
-      """sc.parallelize(0 to 1).map{i => i+1}.collect""".stripMargin)
+      """sc.parallelize(0 to 1).map{i => i+1}.collect()""".stripMargin)
     statement.id should equal (0)
 
     val result = parse(statement.output)

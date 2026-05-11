@@ -98,3 +98,5 @@ version of Spark without needing to rebuild.
 | -Pthriftserver | Build and test Livy Thrift Server modules  |
 | -Pspark3       | Choose Spark 3.x based build dependencies  |
 | -Pscala-2.12   | Choose Scala 2.12 based build dependencies |
+| -Pspark4       | Choose Spark 4.x based build dependencies  |
+| -Pscala-2.13   | Choose Scala 2.13 based build dependencies |

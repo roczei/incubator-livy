@@ -178,7 +178,7 @@ class LivyExecuteStatementOperation(
     }
   }
 
-  private def cleanup(state: OperationState) {
+  private def cleanup(state: OperationState): Unit = {
     if (statementId != null && rpcClientValid) {
       val cleaned = rpcClient.cleanupStatement(sessionHandle, statementId).get()
       if (!cleaned) {
@@ -205,6 +205,6 @@ class LivyExecuteStatementOperation(
     }
     val res = new mutable.ListBuffer[String]
     while (fetchNext(res)) {}
-    res
+    res.toList
   }
 }

@@ -26,14 +26,14 @@ import scala.language.postfixOps
 import org.apache.spark.launcher.SparkLauncher
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.scalatest.FunSuite
 import org.scalatest.concurrent.Eventually._
+import org.scalatest.funsuite.AnyFunSuite
 
 import org.apache.livy._
 import org.apache.livy.rsc.{PingJob, RSCClient, RSCConf}
 import org.apache.livy.sessions.Spark
 
-class ReplDriverSuite extends FunSuite with LivyBaseUnitTestSuite {
+class ReplDriverSuite extends AnyFunSuite with LivyBaseUnitTestSuite {
 
   private implicit val formats = DefaultFormats
 
@@ -46,6 +46,8 @@ class ReplDriverSuite extends FunSuite with LivyBaseUnitTestSuite {
       .setURI(new URI("rsc:/"))
       .setConf(RSCConf.Entry.DRIVER_CLASS.key(), classOf[ReplDriver].getName())
       .setConf(RSCConf.Entry.SESSION_KIND.key(), Spark.toString)
+      // Spark 4 takes longer to shut down than the 10s default; align with TestSparkClient.
+      .setConf(RSCConf.Entry.CLIENT_SHUTDOWN_TIMEOUT.key(), "60s")
       .build()
       .asInstanceOf[RSCClient]
 

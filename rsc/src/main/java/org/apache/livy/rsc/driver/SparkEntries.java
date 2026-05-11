@@ -24,7 +24,6 @@ import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.SparkSession$;
 import org.apache.spark.sql.hive.HiveContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,7 +67,7 @@ public class SparkEntries {
             SparkConf conf = sc().getConf();
             String catalog = conf.get("spark.sql.catalogImplementation", "in-memory").toLowerCase();
 
-            if (catalog.equals("hive") && SparkSession$.MODULE$.hiveClassesArePresent()) {
+            if (catalog.equals("hive") && HiveClassChecker.hiveClassesArePresent()) {
               ClassLoader loader = Thread.currentThread().getContextClassLoader() != null ?
                 Thread.currentThread().getContextClassLoader() : getClass().getClassLoader();
               if (loader.getResource("hive-site.xml") == null) {

@@ -20,7 +20,7 @@ package org.apache.livy.thriftserver.session;
 import java.util.ArrayList;
 import java.util.List;
 
-import static scala.collection.JavaConversions.seqAsJavaList;
+import scala.collection.JavaConverters;
 
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.TableIdentifier;
@@ -50,14 +50,15 @@ public class GetColumnsJob extends SparkCatalogJob {
   @Override
   protected List<Row> fetchCatalogObjects(SessionCatalog catalog) {
     List<Row> columnList = new ArrayList<>();
-    List<String> databases = seqAsJavaList(catalog.listDatabases(databasePattern));
+    List<String> databases = JavaConverters.seqAsJavaListConverter(
+        catalog.listDatabases(databasePattern)).asJava();
 
     for (String db : databases) {
       List<TableIdentifier> tableIdentifiers =
-        seqAsJavaList(catalog.listTables(db, tablePattern));
+        JavaConverters.seqAsJavaListConverter(catalog.listTables(db, tablePattern)).asJava();
       for (TableIdentifier tableIdentifier : tableIdentifiers) {
         CatalogTable table = catalog.getTempViewOrPermanentTableMetadata(tableIdentifier);
-        List<StructField> fields = seqAsJavaList(table.schema());
+        List<StructField> fields = JavaConverters.seqAsJavaListConverter(table.schema()).asJava();
         int position = 0;
         for (StructField field : fields) {
           if (field.name().matches(columnPattern)) {

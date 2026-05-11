@@ -34,6 +34,9 @@ import org.apache.livy.rsc.driver.SparkEntries
 object AbstractSparkInterpreter {
   private[repl] val KEEP_NEWLINE_REGEX = """(?<=\n)""".r
   private val MAGIC_REGEX = "^%(\\w+)\\W*(.*)".r
+  // Scala 2.13 REPL prefixes binding results with "val"/"var"/"lazy val", e.g.
+  // "val res0: Int = 3". Scala 2.12 omitted the keyword. Strip it for API consistency.
+  private[repl] val BINDING_PREFIX_REGEX = """(?m)^(lazy val|val|var) (?=\w+:)""".r
 }
 
 abstract class AbstractSparkInterpreter extends Interpreter with Logging {
@@ -240,6 +243,10 @@ abstract class AbstractSparkInterpreter extends Interpreter with Logging {
       resultFromLastLine: Interpreter.ExecuteResponse): Interpreter.ExecuteResponse = {
     lines match {
       case Nil => resultFromLastLine
+      case head :: tail if head.trim.isEmpty =>
+        // Blank lines must not reach interpret(): even an empty Success still advances the
+        // REPL's res counter (res0, res1, ...), which breaks multi-line block expectations.
+        executeLines(tail, resultFromLastLine)
       case head :: tail =>
         val result = executeLine(head)
 
@@ -259,7 +266,14 @@ abstract class AbstractSparkInterpreter extends Interpreter with Logging {
                   case _ => resultFromLastLine
                 }
               case next :: nextTail =>
-                executeLines(head + "\n" + next :: nextTail, resultFromLastLine)
+                if (head.trim.isEmpty) {
+                  // Skip blank lines rather than prepending them as "\n" to the next line.
+                  // Prepending caused Scala 2.12's interpret() to produce a spurious res-counter
+                  // increment for the leading newline, making resN indices version-dependent.
+                  executeLines(next :: nextTail, resultFromLastLine)
+                } else {
+                  executeLines(head + "\n" + next :: nextTail, resultFromLastLine)
+                }
             }
           case Interpreter.ExecuteError(_, _, _) =>
             result
@@ -309,28 +323,43 @@ abstract class AbstractSparkInterpreter extends Interpreter with Logging {
               )
             case Results.Incomplete => Interpreter.ExecuteIncomplete()
             case Results.Error =>
-              val (ename, traceback) = parseError(readStdout())
-              Interpreter.ExecuteError("Error", ename, traceback)
+              val stdout = readStdout()
+              if (stdout.trim.isEmpty) {
+                // Scala 2.13 returns Error (instead of Incomplete) for empty lines and
+                // comment-only input. Treat as Incomplete so executeLines can apply the
+                // standard {} wrapping logic, which recovers the correct empty result.
+                Interpreter.ExecuteIncomplete()
+              } else {
+                val (ename, traceback) = parseError(stdout)
+                Interpreter.ExecuteError("Error", ename, traceback)
+              }
           }
         }
     }
   }
 
   protected[repl] def parseError(stdout: String): (String, Seq[String]) = {
-    // An example of Scala compile error message:
-    // <console>:27: error: type mismatch;
-    //  found   : Int
-    //  required: Boolean
-
-    // An example of Scala runtime exception error message:
-    // java.lang.RuntimeException: message
-    //   at .error(<console>:11)
-    //   ... 32 elided
-
-    // Return the first line as ename. Lines following as traceback.
+    // Scala 2.12 compile error example:
+    //   <console>:27: error: not found: value x
+    //            x
+    //            ^
+    //
+    // Scala 2.13 compile error example (indicator line appears first):
+    //            ^
+    //   error: not found: value x
+    //
+    // Scala runtime exception example (both versions):
+    //   java.lang.RuntimeException: message
+    //     at .error(<console>:11)
+    //     ... 32 elided
+    //
+    // Return the first non-indicator line as ename; all lines as traceback.
 
     val lines = KEEP_NEWLINE_REGEX.split(stdout)
-    val ename = lines.headOption.map(_.trim).getOrElse("unknown error")
+    // Skip pure caret/whitespace indicator lines that Scala 2.13 emits before the message.
+    val isIndicatorLine = (s: String) => s.trim.matches("[\\^\\s|]*")
+    val ename = lines.dropWhile(isIndicatorLine)
+      .headOption.map(_.trim).getOrElse("unknown error")
     val traceback = lines.tail
 
     (ename, traceback)
@@ -348,7 +377,6 @@ abstract class AbstractSparkInterpreter extends Interpreter with Logging {
   private def readStdout() = {
     val output = outputStream.toString("UTF-8")
     outputStream.reset()
-
-    output
+    BINDING_PREFIX_REGEX.replaceAllIn(output, "")
   }
 }

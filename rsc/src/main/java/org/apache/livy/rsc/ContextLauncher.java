@@ -214,6 +214,10 @@ class ContextLauncher {
       }
     }
 
+    if ("true".equalsIgnoreCase(System.getenv("LIVY_TEST"))) {
+      merge(conf, SparkLauncher.DRIVER_EXTRA_JAVA_OPTIONS, "-DLIVY_TEST=true", " ");
+    }
+
     final File confFile = writeConfToFile(conf);
 
     if (ContextLauncher.mockSparkSubmit != null) {

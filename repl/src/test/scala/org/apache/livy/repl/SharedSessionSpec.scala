@@ -73,7 +73,7 @@ class SharedSessionSpec extends BaseSessionSpec(Shared) {
 
   it should "execute spark commands" in withSession { session =>
     val statement = execute(session,
-      """sc.parallelize(0 to 1).map{i => i+1}.collect""".stripMargin, "spark")
+      """sc.parallelize(0 to 1).map{i => i+1}.collect()""".stripMargin, "spark")
     statement.id should equal (0)
 
     val result = parse(statement.output)

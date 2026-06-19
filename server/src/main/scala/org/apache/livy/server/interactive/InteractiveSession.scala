@@ -245,17 +245,18 @@ object InteractiveSession extends Logging {
         Seq.empty
       } else {
         val sparkHome = livyConf.sparkHome().get
-        val libdir = sparkMajorVersion match {
-          case 3 =>
-            if (new File(sparkHome, "RELEASE").isFile) {
-              new File(sparkHome, "jars")
-            } else {
-              new File(sparkHome, "assembly/target/scala-2.12/jars")
+        val libdir = if (new File(sparkHome, "RELEASE").isFile) {
+            new File(sparkHome, "jars")
+          } else {
+            val scalaBinary = sparkMajorVersion match {
+              case 3 => "2.12"
+              case 4 => "2.13"
+              case _ =>
+                throw new RuntimeException(
+                  s"Unsupported Spark major version: $sparkMajorVersion (minimum 3.0 required)")
             }
-          case v =>
-            throw new RuntimeException(
-              s"Unsupported Spark major version: $sparkMajorVersion (minimum 3.0 required)")
-        }
+            new File(sparkHome, s"assembly/target/scala-$scalaBinary/jars")
+          }
         val jars = if (!libdir.isDirectory) {
           Seq.empty[String]
         } else {
@@ -479,15 +480,13 @@ class InteractiveSession(
         client.get.getServerUri.get()
       }(sessionManageExecutors)
 
-      uriFuture.onSuccess { case url =>
-        rscDriverUri = Option(url)
-        sessionSaveLock.synchronized {
-          sessionStore.save(RECOVERY_SESSION_TYPE, recoveryMetadata)
-        }
-      }(sessionManageExecutors)
-
-      uriFuture.onFailure {
-        case e => warn("Fail to get rsc uri", e)
+      uriFuture.onComplete {
+        case scala.util.Success(url) =>
+          rscDriverUri = Option(url)
+          sessionSaveLock.synchronized {
+            sessionStore.save(RECOVERY_SESSION_TYPE, recoveryMetadata)
+          }
+        case scala.util.Failure(e) => warn("Fail to get rsc uri", e)
       }(sessionManageExecutors)
 
       // Send a dummy job that will return once the client is ready to be used, and set the

@@ -31,9 +31,13 @@ jobs:
       matrix:
         maven_profile:
         - "-Pscala-2.12 -Pspark3"
+        - "-Pscala-2.13 -Pspark4"
         jdk_path:
         - "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java"
         - "/usr/lib/jvm/java-17-openjdk-amd64/bin/java"
+        exclude:
+        - maven_profile: "-Pscala-2.13 -Pspark4"
+          jdk_path: "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java"
     steps:
     -
       name: Checkout

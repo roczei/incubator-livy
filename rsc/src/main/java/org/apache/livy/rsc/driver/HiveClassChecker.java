@@ -15,22 +15,28 @@
  * limitations under the License.
  */
 
-package org.apache.livy.thriftserver
+package org.apache.livy.rsc.driver;
 
-import org.apache.livy.Logging
+final class HiveClassChecker {
 
-object ThriftServerAudit extends Logging {
+  private static final String HIVE_SESSION_STATE_BUILDER =
+    "org.apache.spark.sql.hive.HiveSessionStateBuilder";
+  private static final String HIVE_CONF = "org.apache.hadoop.hive.conf.HiveConf";
 
-  def audit(
-      user: String,
-      ipAddress: String,
-      query: String,
-      startTime: Long,
-      endTime: Long): Unit = {
-    info(
-      s"user: $user ipAddress: $ipAddress query: ${query.replace('\n', ' ')} " +
-        s"start time: ${startTime} end time: ${endTime} " +
-        s"time spent: ${Math.round((endTime - startTime).toDouble / 1000)}s")
+  private HiveClassChecker() {
   }
 
+  static boolean hiveClassesArePresent() {
+    ClassLoader loader = Thread.currentThread().getContextClassLoader();
+    if (loader == null) {
+      loader = HiveClassChecker.class.getClassLoader();
+    }
+    try {
+      Class.forName(HIVE_SESSION_STATE_BUILDER, false, loader);
+      Class.forName(HIVE_CONF, false, loader);
+      return true;
+    } catch (ClassNotFoundException | NoClassDefFoundError e) {
+      return false;
+    }
+  }
 }

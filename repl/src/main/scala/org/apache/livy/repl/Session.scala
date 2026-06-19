@@ -19,7 +19,7 @@ package org.apache.livy.repl
 
 import java.util.{LinkedHashMap => JLinkedHashMap}
 import java.util.Map.Entry
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.JavaConverters._
@@ -137,7 +137,7 @@ class Session(
       entries
     }(interpreterExecutor)
 
-    future.onFailure { case _ => changeState(SessionState.Error()) }(interpreterExecutor)
+    future.failed.foreach { _ => changeState(SessionState.Error()) }(interpreterExecutor)
     future
   }
 
@@ -161,18 +161,35 @@ class Session(
     _statements.synchronized { _statements(statementId) = statement }
 
     Future {
-      setJobGroup(tpe, statementId)
-      statement.compareAndTransit(StatementState.Waiting, StatementState.Running)
+      try {
+        setJobGroup(tpe, statementId)
+        statement.compareAndTransit(StatementState.Waiting, StatementState.Running)
 
-      if (statement.state.get() == StatementState.Running) {
-        statement.started = System.currentTimeMillis()
-        statement.output = executeCode(interpreter(tpe), statementId, code)
+        if (statement.state.get() == StatementState.Running) {
+          statement.started = System.currentTimeMillis()
+          statement.output = executeCode(interpreter(tpe), statementId, code)
+        }
+      } catch {
+        case NonFatal(e) =>
+          error(s"Failed to execute statement $statementId", e)
+          if (statement.state.get() == StatementState.Waiting) {
+            statement.compareAndTransit(StatementState.Waiting, StatementState.Running)
+          }
+          if (statement.state.get() == StatementState.Running) {
+            statement.output = compact(render(
+              (STATUS -> ERROR) ~
+                (EXECUTION_COUNT -> statementId) ~
+                (ENAME -> e.getClass.getName) ~
+                (EVALUE -> Option(e.getMessage).getOrElse("")) ~
+                (TRACEBACK -> Seq.empty[String])
+            ))
+          }
+      } finally {
+        statement.compareAndTransit(StatementState.Running, StatementState.Available)
+        statement.compareAndTransit(StatementState.Cancelling, StatementState.Cancelled)
+        statement.updateProgress(1.0)
+        statement.completed = System.currentTimeMillis()
       }
-
-      statement.compareAndTransit(StatementState.Running, StatementState.Available)
-      statement.compareAndTransit(StatementState.Cancelling, StatementState.Cancelled)
-      statement.updateProgress(1.0)
-      statement.completed = System.currentTimeMillis()
     }(interpreterExecutor)
 
     statementId
@@ -229,6 +246,12 @@ class Session(
   def close(): Unit = {
     interpreterExecutor.shutdown()
     cancelExecutor.shutdown()
+    // Wait for any in-flight start() task to finish before closing the interpreter.
+    // Without this, interpGroup may still be empty when foreach(_.close()) runs,
+    // leaving an orphaned SparkContext in a daemon thread. That context's JVM shutdown
+    // hook would later set SparkShutdownHookManager.shuttingDown = true, causing the
+    // next SparkContext creation to fail with IllegalStateException.
+    interpreterExecutor.awaitTermination(30, TimeUnit.SECONDS)
     interpGroup.values.foreach(_.close())
   }
 
@@ -348,7 +371,7 @@ class Session(
           case "1" =>
             (s"""setJobGroup(sc, "$jobGroup", "Job group for statement $jobGroup", FALSE)""",
              SparkR)
-          case "2" | "3" =>
+          case "2" | "3" | "4" =>
             (s"""setJobGroup("$jobGroup", "Job group for statement $jobGroup", FALSE)""", SparkR)
           case v =>
             throw new IllegalArgumentException(s"Unknown Spark major version [$v]")

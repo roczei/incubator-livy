@@ -70,8 +70,8 @@ RUN git clone https://github.com/pyenv/pyenv.git $HOME/pyenv
 ENV PYENV_ROOT=$HOME/pyenv
 ENV PATH="$HOME/pyenv/shims:$HOME/pyenv/bin:$HOME/bin:$PATH"
 
-RUN pyenv install -v 3.9.21 && \
-  pyenv global 3.9.21 && \
+RUN pyenv install -v 3.11.11 && \
+  pyenv global 3.11.11 && \
   pyenv rehash
 
 # Install build dependencies for python3
